@@ -5,21 +5,26 @@ declare(strict_types=1);
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Workflow\Support\WorkflowMigration;
+use Workflow\V2\Models\WorkflowHistoryEvent;
+use Workflow\V2\Support\ConfiguredV2Models;
 
 return new class() extends WorkflowMigration {
     public function up(): void
     {
-        if (Schema::connection($this->getConnection())->hasColumn('workflow_history_events', 'recorded_at_utc')) {
-            return;
-        }
+        $historyModel = ConfiguredV2Models::resolve('history_event_model', WorkflowHistoryEvent::class);
+        $tables = array_unique(['workflow_history_events', (new $historyModel())->getTable()]);
+        $schema = Schema::connection($this->getConnection());
 
-        Schema::connection($this->getConnection())->table(
-            'workflow_history_events',
-            static function (Blueprint $table): void {
+        foreach ($tables as $tableName) {
+            if (! $schema->hasTable($tableName) || $schema->hasColumn($tableName, 'recorded_at_utc')) {
+                continue;
+            }
+
+            $schema->table($tableName, static function (Blueprint $table): void {
                 $table->dateTime('recorded_at_utc', 6)
                     ->nullable();
-            },
-        );
+            });
+        }
     }
 
     public function down(): void

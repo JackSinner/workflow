@@ -18,6 +18,9 @@ history. When `recorded_at_utc` is absent, new readers preserve the old cast's
 interpretation of `recorded_at` in the PHP process timezone. This keeps old
 rows readable but cannot recover an offset that was never stored. Neither
 projection rebuild nor a database timezone change can recover that offset.
+The migration also adds the column to an existing configured history-event
+table. Applications that create or replace that table in their own migrations
+must include the same nullable UTC column before starting new writers.
 
 ## Rollout and recovery
 
