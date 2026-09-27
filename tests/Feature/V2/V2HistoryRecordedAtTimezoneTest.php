@@ -7,6 +7,7 @@ namespace Tests\Feature\V2;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 use Workflow\V2\Enums\HistoryEventType;
@@ -117,6 +118,28 @@ final class V2HistoryRecordedAtTimezoneTest extends TestCase
         } finally {
             date_default_timezone_set($originalPhpTimezone);
         }
+    }
+
+    public function testMalformedRecordedAtCannotCreateHistoryEvent(): void
+    {
+        $run = $this->fixtureRun();
+        $before = WorkflowHistoryEvent::query()->where('workflow_run_id', $run->id)->count();
+
+        try {
+            WorkflowHistoryEvent::create([
+                'workflow_run_id' => $run->id,
+                'sequence' => 1,
+                'event_type' => HistoryEventType::WorkflowStarted,
+                'payload' => [],
+                'recorded_at' => [],
+            ]);
+        } catch (InvalidArgumentException) {
+            $this->assertSame($before, WorkflowHistoryEvent::query()->where('workflow_run_id', $run->id)->count());
+
+            return;
+        }
+
+        $this->fail('A malformed timestamp must not create a history event.');
     }
 
     private function fixtureRun(): WorkflowRun
