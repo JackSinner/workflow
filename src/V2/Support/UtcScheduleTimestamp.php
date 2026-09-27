@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
-/** Persist schedule instants as UTC in timezone-free database columns. */
+/** Persist instants as UTC in timezone-free database columns. */
 final class UtcScheduleTimestamp implements CastsAttributes
 {
     public bool $withoutObjectCaching = true;
