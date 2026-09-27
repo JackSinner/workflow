@@ -18,7 +18,11 @@ final class HistoryRecordedAt implements CastsAttributes
 {
     public bool $withoutObjectCaching = true;
 
-    public function get(Model $model, string $key, mixed $value, array $attributes): ?Carbon
+    /**
+     * @param Model $model
+     * @param array<string, mixed> $attributes
+     */
+    public function get($model, string $key, mixed $value, array $attributes): ?Carbon
     {
         $utc = $attributes['recorded_at_utc'] ?? null;
 
@@ -30,9 +34,11 @@ final class HistoryRecordedAt implements CastsAttributes
     }
 
     /**
+     * @param Model $model
+     * @param array<string, mixed> $attributes
      * @return array{recorded_at: string|null, recorded_at_utc: string|null}
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes): array
+    public function set($model, string $key, mixed $value, array $attributes): array
     {
         if ($value === null) {
             return [
