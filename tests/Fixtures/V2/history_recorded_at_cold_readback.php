@@ -39,14 +39,18 @@ $pdo = new PDO(
     $dsn,
     (string) getenv('HISTORY_DB_USERNAME'),
     (string) getenv('HISTORY_DB_PASSWORD'),
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+    [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    ],
 );
 if ($driver === 'mysql') {
     $pdo->exec("SET time_zone = '+00:00'");
 }
 
 $query = $pdo->prepare('SELECT recorded_at, recorded_at_utc FROM workflow_history_events WHERE id = :id');
-$query->execute(['id' => $required('HISTORY_EVENT_ID')]);
+$query->execute([
+    'id' => $required('HISTORY_EVENT_ID'),
+]);
 $attributes = $query->fetch(PDO::FETCH_ASSOC);
 if (! is_array($attributes)) {
     throw new RuntimeException('The persisted history event was not found.');

@@ -35,7 +35,10 @@ final class HistoryRecordedAt implements CastsAttributes
     public function set(Model $model, string $key, mixed $value, array $attributes): array
     {
         if ($value === null) {
-            return ['recorded_at' => null, 'recorded_at_utc' => null];
+            return [
+                'recorded_at' => null,
+                'recorded_at_utc' => null,
+            ];
         }
 
         if (is_string($value)) {
@@ -49,8 +52,11 @@ final class HistoryRecordedAt implements CastsAttributes
         $instant = Carbon::instance($value);
 
         return [
-            'recorded_at' => $instant->copy()->setTimezone(date_default_timezone_get())->format('Y-m-d H:i:s.u'),
-            'recorded_at_utc' => $instant->utc()->format('Y-m-d H:i:s.u'),
+            'recorded_at' => $instant->copy()
+                ->setTimezone(date_default_timezone_get())
+                ->format('Y-m-d H:i:s.u'),
+            'recorded_at_utc' => $instant->utc()
+                ->format('Y-m-d H:i:s.u'),
         ];
     }
 }

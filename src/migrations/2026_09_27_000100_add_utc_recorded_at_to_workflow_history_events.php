@@ -16,7 +16,8 @@ return new class() extends WorkflowMigration {
         Schema::connection($this->getConnection())->table(
             'workflow_history_events',
             static function (Blueprint $table): void {
-                $table->dateTime('recorded_at_utc', 6)->nullable();
+                $table->dateTime('recorded_at_utc', 6)
+                    ->nullable();
             },
         );
     }

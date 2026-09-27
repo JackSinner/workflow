@@ -21,7 +21,8 @@ final class V2HistoryRecordedAtTimezoneTest extends TestCase
     {
         $originalAppTimezone = config('app.timezone');
         $originalPhpTimezone = date_default_timezone_get();
-        config()->set('app.timezone', 'Europe/Kyiv');
+        config()
+            ->set('app.timezone', 'Europe/Kyiv');
         date_default_timezone_set('Europe/Kyiv');
 
         try {
@@ -67,7 +68,8 @@ final class V2HistoryRecordedAtTimezoneTest extends TestCase
     {
         $originalAppTimezone = config('app.timezone');
         $originalPhpTimezone = date_default_timezone_get();
-        config()->set('app.timezone', 'Europe/Kyiv');
+        config()
+            ->set('app.timezone', 'Europe/Kyiv');
         date_default_timezone_set('Europe/Kyiv');
 
         try {
@@ -84,7 +86,8 @@ final class V2HistoryRecordedAtTimezoneTest extends TestCase
             $this->assertSame($instant->toJSON(), $this->coldReadback($event)['instant']);
         } finally {
             Carbon::setTestNow();
-            config()->set('app.timezone', $originalAppTimezone);
+            config()
+                ->set('app.timezone', $originalAppTimezone);
             date_default_timezone_set($originalPhpTimezone);
         }
     }
@@ -103,7 +106,9 @@ final class V2HistoryRecordedAtTimezoneTest extends TestCase
                 'payload' => [],
                 'recorded_at' => Carbon::parse('2026-10-25T00:30:00Z'),
             ]);
-            DB::table('workflow_history_events')->where('id', $event->id)->update(['recorded_at_utc' => null]);
+            DB::table('workflow_history_events')->where('id', $event->id)->update([
+                'recorded_at_utc' => null,
+            ]);
 
             $raw = $this->coldReadback($event);
             $this->assertNull($raw['recorded_at_utc']);
@@ -138,7 +143,8 @@ final class V2HistoryRecordedAtTimezoneTest extends TestCase
      */
     private function coldReadback(WorkflowHistoryEvent $event): array
     {
-        $database = $event->getConnection()->getConfig();
+        $database = $event->getConnection()
+            ->getConfig();
         $process = new Process([
             PHP_BINARY,
             __DIR__ . '/../../Fixtures/V2/history_recorded_at_cold_readback.php',
