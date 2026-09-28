@@ -15,6 +15,7 @@ use Symfony\Component\Process\Process;
 use Tests\Fixtures\V2\TestAsyncGeneratorCallbackWorkflow;
 use Tests\Fixtures\V2\TestAsyncWorkflow;
 use Tests\Fixtures\V2\TestBroadFailureCatchWorkflow;
+use Tests\Fixtures\V2\TestBufferedSignalHistoryWorkflow;
 use Tests\Fixtures\V2\TestConfiguredContinueSignalWorkflow;
 use Tests\Fixtures\V2\TestConfiguredGreetingActivity;
 use Tests\Fixtures\V2\TestConfiguredGreetingWorkflow;
@@ -93,6 +94,7 @@ use Workflow\V2\Support\ActivityLease;
 use Workflow\V2\Support\DefaultHistoryProjectionRole;
 use Workflow\V2\Support\EmbeddedV2HistoryImport;
 use Workflow\V2\Support\FailureSnapshots;
+use Workflow\V2\Support\HistoryBudget;
 use Workflow\V2\Support\HistoryExport;
 use Workflow\V2\Support\MemoPayload;
 use Workflow\V2\Support\MemoUpsertService;
@@ -100,7 +102,9 @@ use Workflow\V2\Support\QueryStateReplayer;
 use Workflow\V2\Support\RunDetailView;
 use Workflow\V2\Support\RunSummaryProjector;
 use Workflow\V2\Support\RunSummarySortKey;
+use Workflow\V2\Support\RunTimelineProjector;
 use Workflow\V2\Support\RuntimeObjectFactory;
+use Workflow\V2\Support\RunWaitProjector;
 use Workflow\V2\Support\SelectedRunLocator;
 use Workflow\V2\Support\UpsertMemosCall;
 use Workflow\V2\Support\WorkflowInstanceId;
@@ -5357,6 +5361,81 @@ final class V2WorkflowTest extends TestCase
             ->orderBy('sequence')
             ->pluck('workflow_command_id')
             ->all());
+    }
+
+    public function testManyBufferedSignalsSurviveWorkerResumeWithExactHistory(): void
+    {
+        Queue::fake();
+        $signalCount = 60;
+
+        $workflow = WorkflowStub::make(TestBufferedSignalHistoryWorkflow::class, 'many-buffered-signals');
+        $workflow->start($signalCount);
+        $runId = $workflow->runId();
+
+        $this->assertNotNull($runId);
+        $this->drainReadyTasks();
+
+        for ($index = 0; $index < $signalCount; $index++) {
+            $this->assertTrue($workflow->signal('append', (string) $index)->accepted());
+        }
+
+        $this->assertSame($signalCount, WorkflowHistoryEvent::query()
+            ->where('workflow_run_id', $runId)
+            ->where('event_type', HistoryEventType::SignalReceived->value)
+            ->count());
+        $this->assertSame($signalCount + 3, $workflow->summary()?->history_event_count);
+        $run = WorkflowRun::query()->findOrFail($runId);
+        $this->assertSame(HistoryBudget::forRun($run)['history_size_bytes'], $workflow->summary()?->history_size_bytes);
+        $this->assertFalse(RunTimelineProjector::driftStatusForRun($run)['stale']);
+        $this->assertFalse(RunWaitProjector::driftStatusForRun($run)['stale']);
+        $detail = RunDetailView::forRun($run);
+        $this->assertCount($signalCount + 3, $detail['timeline']);
+        $this->assertCount($signalCount, array_filter(
+            $detail['timeline'],
+            static fn (array $event): bool => ($event['type'] ?? null) === HistoryEventType::SignalReceived->value
+        ));
+
+        $this->drainReadyTasks();
+        $workflow->refresh();
+
+        $this->assertTrue($workflow->completed());
+        $this->assertSame(array_map(strval(...), range(0, $signalCount - 1)), $workflow->output());
+        $this->assertSame($signalCount, WorkflowHistoryEvent::query()
+            ->where('workflow_run_id', $runId)
+            ->where('event_type', HistoryEventType::SignalApplied->value)
+            ->count());
+        $this->assertSame(1, WorkflowHistoryEvent::query()
+            ->where('workflow_run_id', $runId)
+            ->where('event_type', HistoryEventType::WorkflowCompleted->value)
+            ->count());
+    }
+
+    public function testBufferedSignalRefreshesOverdueTaskDiagnostics(): void
+    {
+        Queue::fake();
+        $startedAt = Carbon::parse('2026-09-28 12:00:00');
+        Carbon::setTestNow($startedAt);
+
+        try {
+            $workflow = WorkflowStub::make(TestBufferedSignalHistoryWorkflow::class, 'buffered-signal-diagnostics');
+            $workflow->start(3);
+            $this->drainReadyTasks();
+
+            $this->assertTrue($workflow->signal('append', 'first')->accepted());
+            $this->assertTrue($workflow->signal('append', 'second')->accepted());
+
+            Carbon::setTestNow($startedAt->copy()->addSeconds(10));
+            $this->assertTrue($workflow->signal('append', 'third')->accepted());
+
+            $summary = $workflow->summary();
+            $this->assertSame('repair_needed', $summary?->liveness_state);
+            $this->assertTrue($summary?->task_problem);
+            $projected = RunSummaryProjector::project(WorkflowRun::query()->findOrFail($workflow->runId()));
+            $this->assertSame($projected->liveness_state, $summary->liveness_state);
+            $this->assertSame($projected->task_problem, $summary->task_problem);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function testBufferedSameNamedSignalsKeepDurableWaitIdsBeforeLaterWaitsOpen(): void
