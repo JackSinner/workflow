@@ -76,9 +76,12 @@ final class BackendCapabilitiesTest extends TestCase
     public function testSnapshotUsesWorkflowStorageConnectionBeforeApplicationDefault(): void
     {
         config()->set('database.default', 'mongodb');
-        config()->set('database.connections.mongodb.driver', 'mongodb');
-        config()->set('workflows.storage.connection', 'mysql');
-        config()->set('database.connections.mysql.driver', 'mysql');
+        config()
+            ->set('database.connections.mongodb.driver', 'mongodb');
+        config()
+            ->set('workflows.storage.connection', 'mysql');
+        config()
+            ->set('database.connections.mysql.driver', 'mysql');
 
         $snapshot = BackendCapabilities::snapshot();
 
